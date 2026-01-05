@@ -1,29 +1,6 @@
 // AI Chat utility for enquiry feature - Groq (free, fast)
 
-const CHAT_STORAGE_KEY = 'ideas-app-chat-history'
-const IDEAS_STORAGE_KEY = 'ideas-app-ideas'
-
-export function getChatHistory() {
-  const stored = localStorage.getItem(CHAT_STORAGE_KEY)
-  return stored ? JSON.parse(stored) : []
-}
-
-export function saveChatHistory(messages) {
-  localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages))
-}
-
-export function clearChatHistory() {
-  localStorage.removeItem(CHAT_STORAGE_KEY)
-}
-
-function getIdeas() {
-  const stored = localStorage.getItem(IDEAS_STORAGE_KEY)
-  return stored ? JSON.parse(stored) : []
-}
-
-function buildSystemPrompt() {
-  const ideas = getIdeas()
-
+function buildSystemPrompt(ideas = []) {
   let ideasContext = ''
   if (ideas.length > 0) {
     ideasContext = ideas.map((idea, i) =>
@@ -64,7 +41,7 @@ export function parseAddIdeas(content) {
   return { cleanContent, suggestions }
 }
 
-export async function sendMessage(userMessage, chatHistory) {
+export async function sendMessage(userMessage, chatHistory, ideas = []) {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY
 
   if (!apiKey || apiKey === 'your_groq_api_key_here') {
@@ -72,7 +49,7 @@ export async function sendMessage(userMessage, chatHistory) {
   }
 
   const messages = [
-    { role: 'system', content: buildSystemPrompt() },
+    { role: 'system', content: buildSystemPrompt(ideas) },
     ...chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
     { role: 'user', content: userMessage }
   ]

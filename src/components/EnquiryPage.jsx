@@ -1,63 +1,82 @@
-import { useState, useEffect, useRef } from 'react'
-import { getChatHistory, saveChatHistory, clearChatHistory, sendMessage, parseAddIdeas } from '../utils/aiChat'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { sendMessage, parseAddIdeas } from '../utils/aiChat'
 import { categorizeIdea } from '../utils/categorizer'
 
-const IDEAS_STORAGE_KEY = 'ideas-app-ideas'
-
-function saveIdea(idea) {
-  const stored = localStorage.getItem(IDEAS_STORAGE_KEY)
-  const ideas = stored ? JSON.parse(stored) : []
-  ideas.unshift(idea)
-  localStorage.setItem(IDEAS_STORAGE_KEY, JSON.stringify(ideas))
-  window.dispatchEvent(new Event('ideas-updated'))
-}
-
-export default function EnquiryPage() {
+export default function EnquiryPage({ storage }) {
   const [messages, setMessages] = useState([])
+  const [ideas, setIdeas] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const messagesEndRef = useRef(null)
 
+  const loadIdeas = useCallback(async () => {
+    if (!storage) return
+    try {
+      const ideasData = await storage.getIdeas()
+      setIdeas(ideasData)
+    } catch (error) {
+      console.error('Error fetching ideas:', error)
+    }
+  }, [storage])
+
+  const loadChatHistory = useCallback(async () => {
+    if (!storage) return
+    try {
+      const chatData = await storage.getChatHistory()
+      setMessages(chatData)
+    } catch (error) {
+      console.error('Error fetching chat history:', error)
+    }
+  }, [storage])
+
+  // Load ideas for AI context
   useEffect(() => {
-    setMessages(getChatHistory())
-  }, [])
+    loadIdeas()
+    if (storage) {
+      storage.on('ideasChanged', loadIdeas)
+      return () => storage.off('ideasChanged', loadIdeas)
+    }
+  }, [storage, loadIdeas])
+
+  // Load chat history
+  useEffect(() => {
+    loadChatHistory()
+    if (storage) {
+      storage.on('chatChanged', loadChatHistory)
+      return () => storage.off('chatChanged', loadChatHistory)
+    }
+  }, [storage, loadChatHistory])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return
+    if (!input.trim() || isLoading || !storage) return
 
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date().toISOString()
-    }
-
-    const newMessages = [...messages, userMessage]
-    setMessages(newMessages)
+    const userContent = input.trim()
     setInput('')
     setIsLoading(true)
     setError('')
 
     try {
-      const response = await sendMessage(userMessage.content, messages)
+      // Save user message
+      await storage.saveChatMessage({
+        role: 'user',
+        content: userContent
+      })
+
+      // Get AI response with ideas context
+      const response = await sendMessage(userContent, messages, ideas)
       const { cleanContent, suggestions } = parseAddIdeas(response)
 
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
+      // Save assistant message
+      await storage.saveChatMessage({
         role: 'assistant',
         content: cleanContent,
-        timestamp: new Date().toISOString(),
         suggestions: suggestions.map(text => ({ text, added: false }))
-      }
-
-      const updatedMessages = [...newMessages, assistantMessage]
-      setMessages(updatedMessages)
-      saveChatHistory(updatedMessages)
+      })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -67,37 +86,26 @@ export default function EnquiryPage() {
 
   const handleAddIdea = async (messageId, suggestionIndex) => {
     const message = messages.find(m => m.id === messageId)
-    if (!message?.suggestions?.[suggestionIndex]) return
+    if (!message?.suggestions?.[suggestionIndex] || !storage) return
 
     const suggestion = message.suggestions[suggestionIndex]
     const category = await categorizeIdea(suggestion.text)
 
-    saveIdea({
-      id: Date.now().toString(),
+    // Save idea using storage provider
+    await storage.saveIdea({
       text: suggestion.text,
       category,
-      createdAt: new Date().toISOString(),
       type: 'ai-suggested'
     })
-
-    // Mark as added
-    const updatedMessages = messages.map(m => {
-      if (m.id === messageId) {
-        const updatedSuggestions = [...m.suggestions]
-        updatedSuggestions[suggestionIndex] = { ...suggestion, added: true }
-        return { ...m, suggestions: updatedSuggestions }
-      }
-      return m
-    })
-
-    setMessages(updatedMessages)
-    saveChatHistory(updatedMessages)
   }
 
-  const handleClear = () => {
-    if (window.confirm('Clear all chat history?')) {
-      clearChatHistory()
-      setMessages([])
+  const handleClear = async () => {
+    if (!window.confirm('Clear all chat history?') || !storage) return
+
+    try {
+      await storage.clearChatHistory()
+    } catch (error) {
+      console.error('Error clearing chat:', error)
     }
   }
 

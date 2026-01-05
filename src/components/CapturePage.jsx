@@ -2,21 +2,7 @@ import { useState } from 'react'
 import { useVoiceCapture } from '../hooks/useVoiceCapture'
 import { categorizeIdea } from '../utils/categorizer'
 
-const STORAGE_KEY = 'ideas-app-ideas'
-
-function getIdeas() {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return stored ? JSON.parse(stored) : []
-}
-
-function saveIdea(idea) {
-  const ideas = getIdeas()
-  ideas.unshift(idea)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas))
-  window.dispatchEvent(new Event('ideas-updated'))
-}
-
-export default function CapturePage() {
+export default function CapturePage({ storage }) {
   const [textInput, setTextInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [savedMessage, setSavedMessage] = useState('')
@@ -31,7 +17,7 @@ export default function CapturePage() {
   } = useVoiceCapture()
 
   const handleSaveIdea = async (text) => {
-    if (!text.trim()) return
+    if (!text.trim() || !storage) return
 
     setIsSaving(true)
     setSavedMessage('')
@@ -40,12 +26,10 @@ export default function CapturePage() {
       // Categorize the idea
       const category = await categorizeIdea(text)
 
-      // Save to localStorage
-      saveIdea({
-        id: Date.now().toString(),
+      // Save using storage provider
+      await storage.saveIdea({
         text: text.trim(),
         category,
-        createdAt: new Date().toISOString(),
         type: 'text'
       })
 

@@ -1,38 +1,41 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CATEGORIES } from '../utils/categorizer'
 
-const STORAGE_KEY = 'ideas-app-ideas'
-
-function getIdeas() {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return stored ? JSON.parse(stored) : []
-}
-
-export default function IdeasList() {
+export default function IdeasList({ storage }) {
   const [ideas, setIdeas] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
 
-  const loadIdeas = () => {
-    setIdeas(getIdeas())
-    setLoading(false)
-  }
+  const loadIdeas = useCallback(async () => {
+    if (!storage) return
+    try {
+      const ideasData = await storage.getIdeas()
+      setIdeas(ideasData)
+    } catch (error) {
+      console.error('Error fetching ideas:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [storage])
 
   useEffect(() => {
     loadIdeas()
 
-    // Listen for updates from CapturePage
-    const handleUpdate = () => loadIdeas()
-    window.addEventListener('ideas-updated', handleUpdate)
-    return () => window.removeEventListener('ideas-updated', handleUpdate)
-  }, [])
+    // Subscribe to changes
+    if (storage) {
+      storage.on('ideasChanged', loadIdeas)
+      return () => storage.off('ideasChanged', loadIdeas)
+    }
+  }, [storage, loadIdeas])
 
-  const handleDeleteIdea = (ideaId) => {
+  const handleDeleteIdea = async (ideaId) => {
     if (window.confirm('Delete this idea?')) {
-      const updatedIdeas = ideas.filter(idea => idea.id !== ideaId)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedIdeas))
-      setIdeas(updatedIdeas)
+      try {
+        await storage.deleteIdea(ideaId)
+      } catch (error) {
+        console.error('Error deleting idea:', error)
+      }
     }
   }
 
