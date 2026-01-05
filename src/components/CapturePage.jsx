@@ -1,10 +1,22 @@
 import { useState } from 'react'
 import { useVoiceCapture } from '../hooks/useVoiceCapture'
 import { categorizeIdea } from '../utils/categorizer'
-import { db } from '../firebase'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 
-export default function CapturePage({ userId }) {
+const STORAGE_KEY = 'ideas-app-ideas'
+
+function getIdeas() {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  return stored ? JSON.parse(stored) : []
+}
+
+function saveIdea(idea) {
+  const ideas = getIdeas()
+  ideas.unshift(idea)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ideas))
+  window.dispatchEvent(new Event('ideas-updated'))
+}
+
+export default function CapturePage() {
   const [textInput, setTextInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [savedMessage, setSavedMessage] = useState('')
@@ -28,13 +40,13 @@ export default function CapturePage({ userId }) {
       // Categorize the idea
       const category = await categorizeIdea(text)
 
-      // Save to Firebase
-      await addDoc(collection(db, 'ideas'), {
-        userId,
+      // Save to localStorage
+      saveIdea({
+        id: Date.now().toString(),
         text: text.trim(),
         category,
-        createdAt: serverTimestamp(),
-        type: 'text' // Can be 'text', 'voice', or 'image' later
+        createdAt: new Date().toISOString(),
+        type: 'text'
       })
 
       setSavedMessage(`✓ Saved to ${category}!`)

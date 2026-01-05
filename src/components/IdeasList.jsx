@@ -1,43 +1,38 @@
 import { useState, useEffect } from 'react'
-import { db } from '../firebase'
-import { collection, query, where, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore'
 import { CATEGORIES } from '../utils/categorizer'
 
-export default function IdeasList({ userId }) {
+const STORAGE_KEY = 'ideas-app-ideas'
+
+function getIdeas() {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  return stored ? JSON.parse(stored) : []
+}
+
+export default function IdeasList() {
   const [ideas, setIdeas] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
 
+  const loadIdeas = () => {
+    setIdeas(getIdeas())
+    setLoading(false)
+  }
+
   useEffect(() => {
-    if (!userId) return
+    loadIdeas()
 
-    // Real-time listener for ideas
-    const q = query(
-      collection(db, 'ideas'),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
-    )
+    // Listen for updates from CapturePage
+    const handleUpdate = () => loadIdeas()
+    window.addEventListener('ideas-updated', handleUpdate)
+    return () => window.removeEventListener('ideas-updated', handleUpdate)
+  }, [])
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ideasData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-      setIdeas(ideasData)
-      setLoading(false)
-    })
-
-    return () => unsubscribe()
-  }, [userId])
-
-  const handleDeleteIdea = async (ideaId) => {
+  const handleDeleteIdea = (ideaId) => {
     if (window.confirm('Delete this idea?')) {
-      try {
-        await deleteDoc(doc(db, 'ideas', ideaId))
-      } catch (error) {
-        console.error('Error deleting idea:', error)
-      }
+      const updatedIdeas = ideas.filter(idea => idea.id !== ideaId)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedIdeas))
+      setIdeas(updatedIdeas)
     }
   }
 
@@ -147,7 +142,7 @@ export default function IdeasList({ userId }) {
                             {idea.category}
                           </span>
                           <span>
-                            {idea.createdAt?.toDate().toLocaleDateString(undefined, {
+                            {new Date(idea.createdAt).toLocaleDateString(undefined, {
                               month: 'short',
                               day: 'numeric',
                               year: 'numeric',

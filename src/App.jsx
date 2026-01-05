@@ -1,43 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import CapturePage from './components/CapturePage'
 import IdeasList from './components/IdeasList'
-import { auth } from './firebase'
-import { signInAnonymously } from 'firebase/auth'
 
 function App() {
   const [view, setView] = useState('capture') // 'capture' or 'list'
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // Auto sign-in anonymously for private but easy access
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        setUser(user)
-        setLoading(false)
-      } else {
-        // Sign in anonymously if not signed in
-        try {
-          const result = await signInAnonymously(auth)
-          setUser(result.user)
-        } catch (error) {
-          console.error('Auth error:', error)
-        } finally {
-          setLoading(false)
-        }
-      }
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600">
@@ -73,9 +39,9 @@ function App() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
         {view === 'capture' ? (
-          <CapturePage userId={user?.uid} />
+          <CapturePage />
         ) : (
-          <IdeasList userId={user?.uid} />
+          <IdeasList />
         )}
       </main>
     </div>
