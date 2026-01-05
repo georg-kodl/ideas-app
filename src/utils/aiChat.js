@@ -1,4 +1,4 @@
-// AI Chat utility for enquiry feature
+// AI Chat utility for enquiry feature - Groq (free, fast)
 
 const CHAT_STORAGE_KEY = 'ideas-app-chat-history'
 const IDEAS_STORAGE_KEY = 'ideas-app-ideas'
@@ -65,10 +65,10 @@ export function parseAddIdeas(content) {
 }
 
 export async function sendMessage(userMessage, chatHistory) {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY
 
-  if (!apiKey || apiKey === 'sk-your_openai_api_key_here') {
-    throw new Error('OpenAI API key not configured. Add VITE_OPENAI_API_KEY to your .env file.')
+  if (!apiKey || apiKey === 'your_groq_api_key_here') {
+    throw new Error('Groq API key not configured. Add VITE_GROQ_API_KEY to your .env file. Get one free at https://console.groq.com/keys')
   }
 
   const messages = [
@@ -77,14 +77,14 @@ export async function sendMessage(userMessage, chatHistory) {
     { role: 'user', content: userMessage }
   ]
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'llama-3.3-70b-versatile',
       messages,
       max_tokens: 1000,
       temperature: 0.7
